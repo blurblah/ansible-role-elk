@@ -1,0 +1,10 @@
+---
+- name: Check login_user and password
+  fail:
+    msg: Undefined variables login_user or login_password
+  when: login_user is undefined or login_password is undefined
+
+- name: Check log_list
+  fail:
+    msg: Undefined variables log_list
+  when: log_list is undefined

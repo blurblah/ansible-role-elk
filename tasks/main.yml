@@ -1,0 +1,84 @@
+---
+- include: check_system.yml
+- include: check_variables.yml
+
+- name: Install java8
+  apt:
+    name: openjdk-8-jdk
+    update_cache: yes
+
+- name: Add gpg-key
+  apt_key:
+    url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+
+- name: Add repository
+  apt_repository:
+    repo: deb https://artifacts.elastic.co/packages/5.x/apt stable main
+
+- name: Install elk, filebeat and nginx
+  apt: name={{ item }}
+  with_items:
+    - elasticsearch
+    - logstash
+    - kibana
+    - filebeat
+    - nginx
+
+- name: Create configuration files for logstash
+  template:
+    src: "{{ item }}"
+    dest: /etc/logstash/conf.d/{{ item.split('.')[:-1] | join('.') }}
+    mode: 0644
+  with_items:
+    - "01-beats-input.conf.j2"
+    - "10-syslog-filter.conf.j2"
+    - "30-elastic-output.conf.j2"
+
+- name: Replace filebeat.yml
+  template:
+    src: filebeat.yml.j2
+    dest: /etc/filebeat/filebeat.yml
+    mode: 0644
+
+- name: Start services
+  systemd:
+    daemon_reload: yes
+    name: "{{ item }}"
+    enabled: yes
+    state: restarted
+  with_items:
+    - elasticsearch
+    - logstash
+    - kibana
+    - filebeat
+
+- name: Put filebeat template in elasticsearch and import dashboards
+  shell: |
+    systemctl status elasticsearch
+    if [ $? -ne 0 ]; then
+        echo "Wait 10 secs for elasticsearch starting."
+        sleep 10
+    fi
+    curl -H 'Content-Type: application/json' -XPUT 'http://localhost:9200/_template/filebeat' -d@/etc/filebeat/filebeat.template.json
+    /usr/share/filebeat/scripts/import_dashboards -only-index -es http://localhost:9200
+
+- name: Install passlib for creation of basic auth file
+  shell: |
+    apt-get install -y python-pip
+    pip install -U pip
+    pip install passlib
+
+- name: Create basic authentication file for nginx
+  htpasswd:
+    path: /etc/nginx/htpasswd.users
+    name: "{{ login_user }}"
+    password: "{{ login_password }}"
+    owner: root
+    mode: 0640
+
+- name: Replace default site file for nginx
+  template:
+    src: nginx_default.j2
+    dest: /etc/nginx/sites-available/default
+    mode: 0644
+  notify: restart nginx
