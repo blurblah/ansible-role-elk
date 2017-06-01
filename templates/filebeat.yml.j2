@@ -4,6 +4,10 @@ filebeat.prospectors:
 {% for log in log_list %}
     - {{ log }}
 {% endfor %}
+{% if timezone is defined %}
+  fields:
+    timezone: {{ timezone }}
+{% endif %}
   document_type: syslog
 
 output.logstash:
