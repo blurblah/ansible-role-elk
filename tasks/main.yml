@@ -24,7 +24,7 @@
     - filebeat
     - nginx
 
-- name: Create configuration files for logstash
+- name: Create default configuration files for logstash
   template:
     src: "{{ item }}"
     dest: /etc/logstash/conf.d/{{ item.split('.')[:-1] | join('.') }}
@@ -33,6 +33,14 @@
     - "01-beats-input.conf.j2"
     - "10-syslog-filter.conf.j2"
     - "30-elastic-output.conf.j2"
+
+- name: Create custom files for logstash
+  template:
+    src: "{{ item }}"
+    dest: /etc/logstash/conf.d/{{ item.split('.')[:-1] | join('.') }}
+    mode: 0644
+  with_items: custom_templates
+  when: custom_templates is defined
 
 - name: Replace filebeat.yml
   template:
